@@ -4,6 +4,7 @@ from ReSuS import ReSuS
 from ES import ES
 from aCS import aCS
 from HMC import HMC
+from CW_aMH import CW_aMH
 
 
 class SeMCS:
@@ -18,11 +19,11 @@ class SeMCS:
         self.lsf, self.dimension, self.n_samples = lsf, int(dimension), n
         self.p0, self.max_levels = p0, int(max_levels)
         self.profile = profile
-        factories = {"ES": ES, "aCS": aCS, "HMC": HMC}
+        factories = {"ES": ES, "aCS": aCS, "HMC": HMC, "CW_aMH": CW_aMH}
         if isinstance(sampler, str):
             if sampler not in factories:
-                raise ValueError("sampler must be ES, aCS, or HMC")
-            self.sampler = HMC(carry_state=True) if sampler == "HMC" else factories[sampler]()
+                raise ValueError("sampler must be CW_aMH, ES, aCS, or HMC")
+            self.sampler = factories[sampler]()
         else:
             self.sampler = sampler
 
@@ -35,6 +36,11 @@ class SeMCS:
         if len(g) != self.n_samples or not np.all(np.isfinite(g)):
             raise ValueError('LSF must return one finite value per sample')
         calls, dist, log_z = self.n_samples, ReSuS(profile=self.profile), 0.0
+        dist.lsf = self.lsf
+        dist.Ndim = self.dimension
+        dist.G = {"L": np.eye(self.dimension)}
+        self.sampler.rng = rng
+        sampler_history = []
         samples, values, distributions, log_normalizers, counts = [], [], [], [], []
         converged = False
         for _ in range(self.max_levels):
@@ -60,12 +66,19 @@ class SeMCS:
             next_log_z = np.logaddexp.reduce(-log_denom[mask])
             seed_x, seed_g = next_dist.select_seeds(x, g, lp, self.n_samples, rng)
             length = int(np.floor(self.n_samples/seed_x.shape[1]+0.5))
-            x, g, used = self.sampler.sample(self.lsf, next_dist, seed_x, seed_g, length, rng)
+            lp_seed = -.5*np.sum(seed_x*seed_x, axis=0)-self.dimension/2*np.log(2*np.pi)
+            packed = np.vstack((np.where(next_dist.contains(seed_g, lp_seed), 0., -np.inf), lp_seed, lp_seed, seed_g))
+            self.sampler.BayStc = next_dist
+            previous_state = dict(next_dist.G)
+            x, packed, used, next_dist = self.sampler.SamGen(seed_x, packed, length)
+            sampler_history.append({"initial": previous_state, "final": dict(next_dist.G)})
+            x = x.reshape(self.dimension, -1, order="F")
+            g = packed[3].reshape(-1, order="F")
             calls += used
             dist, log_z = next_dist, next_log_z
         failures = pooled_g <= 0
         log_pf = float(np.logaddexp.reduce(-log_denom[failures])) if np.any(failures) else -np.inf
         pf = float(np.exp(log_pf))
-        return dict(sampler_history=getattr(self.sampler, 'level_history', []), profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
+        return dict(sampler_history=sampler_history, profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
                     values=values, thresholds=np.array([[d.g_threshold, d.logpdf_threshold] for d in distributions]),
                     log_normalizers=np.array(log_normalizers), sample_counts=np.array(counts))

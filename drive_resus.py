@@ -20,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--example', choices=['A', 'B'], default='A')
     parser.add_argument('--n', type=int, default=5000)
     parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument("--sampler", choices=["ES", "aCS", "HMC"], default="ES")
+    parser.add_argument("--sampler", choices=["CW_aMH", "ES", "aCS", "HMC"], default="ES")
     parser.add_argument("--p0", type=float, default=0.1)
     parser.add_argument("--profile", choices=["legacy", "paper"], default="legacy")
     args = parser.parse_args()

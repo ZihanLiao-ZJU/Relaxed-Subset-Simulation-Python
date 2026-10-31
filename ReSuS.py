@@ -1,5 +1,6 @@
 """Hybrid LSF / Gaussian-tail intermediate distributions."""
 import numpy as np
+import copy
 
 
 class ReSuS:
@@ -7,6 +8,8 @@ class ReSuS:
         if profile not in ("legacy", "paper"):
             raise ValueError("profile must be legacy or paper")
         self.profile = profile
+        self.G = {}
+        self.Nfun = 4
         self.g_threshold = float(g_threshold)
         self.logpdf_threshold = float(logpdf_threshold)
 
@@ -18,9 +21,13 @@ class ReSuS:
         if not 1 <= k < len(g):
             raise ValueError('p0 must select at least one but fewer than all samples')
         sg, sp = np.sort(g), np.sort(logpdf)
+        obj = copy.copy(self)
+        obj.G = dict(self.G)
         if self.profile == "paper":
-            return ReSuS(sg[k-1], sp[k-1], self.profile)
-        return ReSuS((sg[k-1]+sg[k])/2, (sp[k-1]+sp[k])/2, self.profile)
+            obj.g_threshold, obj.logpdf_threshold = sg[k-1], sp[k-1]
+        else:
+            obj.g_threshold, obj.logpdf_threshold = (sg[k-1]+sg[k])/2, (sp[k-1]+sp[k])/2
+        return obj
 
     def select_seeds(self, x, g, logpdf, n, rng):
         if self.profile == "paper":
@@ -41,3 +48,18 @@ class ReSuS:
 
     def converged(self):
         return self.g_threshold <= 0
+
+    def EvlY(self, u):
+        obj = copy.copy(self)
+        values = np.asarray(self.lsf(u), dtype=float).reshape(1, -1)
+        if values.shape[1] != u.shape[1] or not np.all(np.isfinite(values)):
+            raise ValueError("LSF must return one finite value per column")
+        obj.Y = np.vstack((-.5*np.sum(u*u, axis=0)-self.Ndim/2*np.log(2*np.pi), values))
+        obj.Ncal = u.shape[1]
+        return obj
+
+    def EvlLKF(self):
+        return np.where(self.contains(self.Y[1], self.Y[0]), 0., -np.inf)
+
+    def EvlPDF(self):
+        return self.Y[0]
