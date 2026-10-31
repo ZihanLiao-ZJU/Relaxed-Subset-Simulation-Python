@@ -2,10 +2,12 @@
 import numpy as np
 from ReSuS import ReSuS
 from ES import ES
+from aCS import aCS
+from HMC import HMC
 
 
 class SeMCS:
-    def __init__(self, lsf, dimension, n_samples=1000, p0=0.1, max_levels=100):
+    def __init__(self, lsf, dimension, n_samples=5000, p0=0.1, max_levels=100, sampler="ES", profile="legacy"):
         n = n_samples
         if not isinstance(n, (int, np.integer)) or n < 2:
             raise ValueError('n must be an integer >= 2')
@@ -15,15 +17,24 @@ class SeMCS:
             raise ValueError('dimension and max_levels must be positive integers')
         self.lsf, self.dimension, self.n_samples = lsf, int(dimension), n
         self.p0, self.max_levels = p0, int(max_levels)
-        self.sampler = ES()
+        self.profile = profile
+        factories = {"ES": ES, "aCS": aCS, "HMC": HMC}
+        if isinstance(sampler, str):
+            if sampler not in factories:
+                raise ValueError("sampler must be ES, aCS, or HMC")
+            self.sampler = HMC(carry_state=True) if sampler == "HMC" else factories[sampler]()
+        else:
+            self.sampler = sampler
 
     def run(self, rng=None):
         rng = np.random.default_rng() if rng is None else rng
+        if hasattr(self.sampler, "reset"):
+            self.sampler.reset()
         x = rng.standard_normal((self.dimension, self.n_samples))
         g = np.asarray(self.lsf(x), dtype=float).reshape(-1)
         if len(g) != self.n_samples or not np.all(np.isfinite(g)):
             raise ValueError('LSF must return one finite value per sample')
-        calls, dist, log_z = self.n_samples, ReSuS(), 0.0
+        calls, dist, log_z = self.n_samples, ReSuS(profile=self.profile), 0.0
         samples, values, distributions, log_normalizers, counts = [], [], [], [], []
         converged = False
         for _ in range(self.max_levels):
@@ -55,6 +66,6 @@ class SeMCS:
         failures = pooled_g <= 0
         log_pf = float(np.logaddexp.reduce(-log_denom[failures])) if np.any(failures) else -np.inf
         pf = float(np.exp(log_pf))
-        return dict(pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
+        return dict(sampler_history=getattr(self.sampler, 'level_history', []), profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
                     values=values, thresholds=np.array([[d.g_threshold, d.logpdf_threshold] for d in distributions]),
                     log_normalizers=np.array(log_normalizers), sample_counts=np.array(counts))

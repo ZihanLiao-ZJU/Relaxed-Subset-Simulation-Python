@@ -3,7 +3,10 @@ import numpy as np
 
 
 class ReSuS:
-    def __init__(self, g_threshold=np.inf, logpdf_threshold=np.inf):
+    def __init__(self, g_threshold=np.inf, logpdf_threshold=np.inf, profile="legacy"):
+        if profile not in ("legacy", "paper"):
+            raise ValueError("profile must be legacy or paper")
+        self.profile = profile
         self.g_threshold = float(g_threshold)
         self.logpdf_threshold = float(logpdf_threshold)
 
@@ -15,9 +18,18 @@ class ReSuS:
         if not 1 <= k < len(g):
             raise ValueError('p0 must select at least one but fewer than all samples')
         sg, sp = np.sort(g), np.sort(logpdf)
-        return ReSuS((sg[k-1]+sg[k])/2, (sp[k-1]+sp[k])/2)
+        if self.profile == "paper":
+            return ReSuS(sg[k-1], sp[k-1], self.profile)
+        return ReSuS((sg[k-1]+sg[k])/2, (sp[k-1]+sp[k])/2, self.profile)
 
     def select_seeds(self, x, g, logpdf, n, rng):
+        if self.profile == "paper":
+            eligible = np.flatnonzero(self.contains(g, logpdf))
+            if not len(eligible):
+                raise RuntimeError("No eligible seeds")
+            count = int(np.floor(n / np.ceil(n / len(eligible)) + 0.5))
+            chosen = rng.choice(eligible, size=count, replace=False)
+            return x[:, chosen], g[chosen]
         eligible = np.flatnonzero((g < self.g_threshold) | (logpdf < self.logpdf_threshold))
         lengths = np.floor(n / np.arange(1, n+1) + 0.5)
         counts = np.floor(n / lengths + 0.5).astype(int)

@@ -1,4 +1,4 @@
-"""Coordinatewise angular sampler retained from the supplied ES source."""
+"""Coordinatewise angular sampler aligned with the public SeMIS ES implementation."""
 import numpy as np
 
 
@@ -12,6 +12,7 @@ class ES:
         xs, gs = [], []
         calls = 0
         normals = rng.standard_normal((d, nc, chain_length))
+        uniforms = rng.uniform(size=(nc, chain_length))
         for step in range(chain_length):
             radius = np.sqrt(current**2 + normals[:, :, step]**2)
             ratio = np.divide(current, radius, out=np.zeros_like(current), where=radius > 0)
@@ -27,7 +28,7 @@ class ES:
                     raise ValueError('LSF must return one finite value per sample')
                 calls += len(pending)
                 lp = -0.5*np.sum(candidate**2, axis=0)-d/2*np.log(2*np.pi)
-                accepted = distribution.contains(g, lp)
+                accepted = distribution.contains(g, lp) | (uniforms[pending, step] == 0)
                 proposal_state[:, pending[accepted]] = candidate[:, accepted]
                 proposal_g[pending[accepted]] = g[accepted]
                 rejected = ~accepted
