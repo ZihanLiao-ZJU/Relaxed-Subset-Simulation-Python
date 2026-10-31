@@ -31,9 +31,9 @@ The `paper` threshold/seed profile does not change MIS into the paper's probabil
 - `ReSuS`: intermediate distributions, threshold updates, seed selection and convergence.
 - `CW_aMH`, `ES`, `aCS`, `HMC`: sampling within the intermediate domain.
 - `drive_resus`: experiment settings and execution.
-- `LSF_2D_PiecewiseLinear`, `LSF_2D_ChangingTopological`: examples A and B.
+- `LSF_2D_PiecewiseLinear`, `LSF_2D_ChangingTopological`, `LSF_2D_LinearLog`: examples A, B and C.
 
-Each repository is independent; the algorithm/example source files correspond one-to-one between languages. Examples A and B use independent standard-normal inputs. Other examples and nonnormal/Nataf transformations are not included.
+Each repository is independent; the algorithm/example source files correspond one-to-one between languages. Examples A-C use independent standard-normal inputs. Example C follows paper Eq. (26), using `5 - x1` without the `0.03` scale in the earlier supplied source. Only A-C are included; nonnormal/Nataf transformations are not included.
 
 ## Python usage
 
@@ -43,6 +43,7 @@ Requires Python 3.10 or later and NumPy. From this repository directory:
 python -m pip install -r requirements.txt
 python drive_resus.py --example A --seed 1
 python drive_resus.py --example B --seed 1
+python drive_resus.py --example C --n 1000 --seed 1 --sampler ES --profile paper
 
 # Explicit paper threshold/seed profile, with the requested MIS estimator:
 python drive_resus.py --example A --n 1000 --seed 1 --sampler ES --profile paper
