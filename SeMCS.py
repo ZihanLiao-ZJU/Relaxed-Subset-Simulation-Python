@@ -1,4 +1,4 @@
-"""Sequential Monte Carlo orchestration and balance-heuristic MIS estimates."""
+"""Sequential Monte Carlo orchestration and Re-SuS probability products (Eq. 24)."""
 import numpy as np
 from ReSuS import ReSuS
 from ES import ES
@@ -42,28 +42,24 @@ class SeMCS:
         self.sampler.rng = rng
         sampler_history = []
         samples, values, distributions, log_normalizers, counts = [], [], [], [], []
+        conditional_probabilities = []
         converged = False
         for _ in range(self.max_levels):
             lp = -0.5*np.sum(x*x, axis=0)-self.dimension/2*np.log(2*np.pi)
             samples.append(x); values.append(g)
             distributions.append(dist); log_normalizers.append(log_z); counts.append(len(g))
-            pooled_g = np.concatenate(values)
-            pooled_x = np.concatenate(samples, axis=1)
-            pooled_lp = -0.5*np.sum(pooled_x**2, axis=0)-self.dimension/2*np.log(2*np.pi)
-            log_denom = np.full(len(pooled_g), -np.inf)
-            for previous, z, count in zip(distributions, log_normalizers, counts):
-                term = np.where(previous.contains(pooled_g, pooled_lp), np.log(count)-z, -np.inf)
-                log_denom = np.logaddexp(log_denom, term)
             next_dist = dist.update(g, lp, self.p0)
             if next_dist.converged():
                 converged = True
                 break
             if len(samples) == self.max_levels:
                 break
-            mask = next_dist.contains(pooled_g, pooled_lp)
-            if not np.any(mask):
+            # Eq. (23): conditional hybrid probability on this level only.
+            probability = float(np.mean(next_dist.contains(g, lp)))
+            if probability <= 0:
                 raise RuntimeError('Intermediate distribution has no supported samples')
-            next_log_z = np.logaddexp.reduce(-log_denom[mask])
+            conditional_probabilities.append(probability)
+            next_log_z = log_z + np.log(probability)
             seed_x, seed_g = next_dist.select_seeds(x, g, lp, self.n_samples, rng)
             length = int(np.floor(self.n_samples/seed_x.shape[1]+0.5))
             lp_seed = -.5*np.sum(seed_x*seed_x, axis=0)-self.dimension/2*np.log(2*np.pi)
@@ -76,9 +72,11 @@ class SeMCS:
             g = packed[3].reshape(-1, order="F")
             calls += used
             dist, log_z = next_dist, next_log_z
-        failures = pooled_g <= 0
-        log_pf = float(np.logaddexp.reduce(-log_denom[failures])) if np.any(failures) else -np.inf
+        # Eq. (21)/(24): replace the un-sampled next hybrid event with true failure.
+        final_probability = float(np.mean(g <= 0))
+        conditional_probabilities.append(final_probability)
+        log_pf = float(log_z + np.log(final_probability)) if final_probability > 0 else -np.inf
         pf = float(np.exp(log_pf))
-        return dict(sampler_history=sampler_history, profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
+        return dict(estimator="product", conditional_probabilities=np.array(conditional_probabilities), sampler_history=sampler_history, profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
                     values=values, thresholds=np.array([[d.g_threshold, d.logpdf_threshold] for d in distributions]),
                     log_normalizers=np.array(log_normalizers), sample_counts=np.array(counts))
