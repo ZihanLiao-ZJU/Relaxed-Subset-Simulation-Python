@@ -54,8 +54,10 @@ $$
 The empty product is 1 when $m=0$. At normal termination, the *next* LSF threshold has reached zero or below; the final factor is evaluated on the last **actually sampled** domain, whose LSF threshold is still positive. No additional unsampled hybrid-event factor is included. `conditional_probabilities` stores the transition factors followed by the true-failure factor; `log_normalizers` stores cumulative log-normalizer estimates. `ReSuSProduct` performs this native postprocessing rather than balance-heuristic MIS. All averages use actual level sizes, and MCMC correlation and adaptive thresholds remain relevant to uncertainty.
 
 ## Structure
+
+Every toolbox includes the same `SeMCS(sampler).RunIte()` loop. Method classes own initialization, intermediate updates, seed selection and convergence. Fixed MCMC options are sampler attributes; evolving proposal scales and trajectory times are stored in the model's `G`. Each repository runs independently.
 - `drive_resus.py` — example selection, settings and execution.
-- `SeMCS.py` — iteration, stored levels and probability-product estimation.
+- `SeMCS.py` — the common sampler-driven iteration and stored levels.
 - `ReSuS.py` — hybrid distributions, thresholds, seed selection and convergence.
 - `Limit_state_functions/LSF_2D_PiecewiseLinear.py`, `Limit_state_functions/LSF_2D_ChangingTopological.py`, `Limit_state_functions/LSF_2D_LinearLog.py` — examples A–C.
 - `MCMC_samplers/MCMCBase.py`, `MCMC_samplers/CW_aMH.py`, `MCMC_samplers/aCS.py`, `MCMC_samplers/HMC.py`, `MCMC_samplers/ES.py` — locally included sampling interface and kernels.
@@ -83,7 +85,7 @@ The returned result includes `pf`, `log_pf`, `conditional_probabilities`, actual
 - Defaults are unchanged: example A, N=5000, seed 1, p0=0.1 and `legacy` profile. Explicit `paper` runs above use N=1000; the level budget defaults to 100.
 - `legacy` retains midpoint thresholds and strict seed eligibility. `paper` uses order-statistic thresholds, inclusive eligibility and Algorithm 1 chain-count rounding. **Both profiles now use the product estimator**; selecting `paper` does not replace the unified ES with a historical ESS kernel.
 - C uses the paper's unscaled `5-x1` branch, not the `0.03` scale present in an earlier supplied file. No D–H models are bundled.
-- The `SeMCS` constructor accepts a model and its dimension. Models return one finite LSF value per column of a dimension-by-sample input. Custom physical/nonnormal models must be mapped to Gaussian/Nataf reference coordinates; common kernels are not restricted to 2D.
+- The `SeMCS` constructor accepts a bound sampler; its model provides the LSF and dimension. Models return one finite LSF value per column of a dimension-by-sample input. Custom physical/nonnormal models must be mapped to Gaussian/Nataf reference coordinates; common kernels are not restricted to 2D.
 
 ## Dependencies
 - Python 3.10 or later and NumPy ≥1.23; tested with Python 3.12.14 / NumPy 2.3.5. See `requirements.txt`.
