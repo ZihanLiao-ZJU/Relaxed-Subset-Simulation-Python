@@ -1,4 +1,5 @@
 """Run either of the three standard-normal numerical examples."""
+
 import argparse
 import numpy as np
 from SeMCS import SeMCS
@@ -14,13 +15,19 @@ def drive_resus(example='A', n=5000, seed=1, sampler='ES', p0=0.1, profile='lega
     examples = {'A': LSF_2D_PiecewiseLinear, 'B': LSF_2D_ChangingTopological, 'C': LSF_2D_LinearLog}
     if example.upper() not in examples:
         raise ValueError('example must be A, B or C')
-    model=ReSuS(profile=profile);model.lsf=examples[example.upper()];model.Ndim=2
-    factories={"CW_aMH":CW_aMH,"aCS":aCS,"HMC":HMC,"ES":ES}
-    kernel=factories[sampler](model) if isinstance(sampler,str) else sampler
-    kernel.BayStc=model
-    simulation=SeMCS(kernel);simulation.NumSam=n;simulation.ConPrb=p0
-    result=ReSuSProduct(simulation.RunIte(np.random.default_rng(seed)))
-    print(f"Example {example.upper()}: Pf={result['pf']:.8g}; LSF calls={result['n_calls']}; converged={result['converged']}")
+    model = ReSuS(profile=profile)
+    model.lsf = examples[example.upper()]
+    model.Ndim = 2
+    factories = {"CW_aMH": CW_aMH, "aCS": aCS, "HMC": HMC, "ES": ES}
+    kernel = factories[sampler](model) if isinstance(sampler, str) else sampler
+    kernel.BayStc = model
+    simulation = SeMCS(kernel)
+    simulation.NumSam = n
+    simulation.ConPrb = p0
+    result = ReSuSProduct(simulation.RunIte(np.random.default_rng(seed)))
+    print(
+        f"Example {example.upper()}: Pf={result['pf']:.8g}; LSF calls={result['n_calls']}; converged={result['converged']}"
+    )
     return result
 
 
