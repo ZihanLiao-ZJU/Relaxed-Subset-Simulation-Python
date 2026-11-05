@@ -1,6 +1,7 @@
 """Hybrid LSF / Gaussian-tail intermediate distributions."""
 import numpy as np
 import copy
+from Operations_on_Logarithmic_values.logGauss import logGauss
 
 
 class ReSuS:
@@ -54,7 +55,7 @@ class ReSuS:
         values = np.asarray(self.lsf(u), dtype=float).reshape(1, -1)
         if values.shape[1] != u.shape[1] or not np.all(np.isfinite(values)):
             raise ValueError("LSF must return one finite value per column")
-        obj.Y = np.vstack((-.5*np.sum(u*u, axis=0)-self.Ndim/2*np.log(2*np.pi), values))
+        obj.Y = np.vstack((logGauss(u, self.Ndim), values))
         obj.Ncal = u.shape[1]
         return obj
 

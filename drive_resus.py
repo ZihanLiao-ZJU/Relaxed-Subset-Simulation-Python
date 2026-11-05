@@ -2,9 +2,9 @@
 import argparse
 import numpy as np
 from SeMCS import SeMCS
-from LSF_2D_PiecewiseLinear import LSF_2D_PiecewiseLinear
-from LSF_2D_ChangingTopological import LSF_2D_ChangingTopological
-from LSF_2D_LinearLog import LSF_2D_LinearLog
+from Limit_state_functions.LSF_2D_PiecewiseLinear import LSF_2D_PiecewiseLinear
+from Limit_state_functions.LSF_2D_ChangingTopological import LSF_2D_ChangingTopological
+from Limit_state_functions.LSF_2D_LinearLog import LSF_2D_LinearLog
 
 
 def drive_resus(example='A', n=5000, seed=1, sampler='ES', p0=0.1, profile='legacy'):

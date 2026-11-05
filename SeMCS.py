@@ -1,10 +1,12 @@
 """Sequential Monte Carlo orchestration and Re-SuS probability products (Eq. 24)."""
 import numpy as np
 from ReSuS import ReSuS
-from ES import ES
-from aCS import aCS
-from HMC import HMC
-from CW_aMH import CW_aMH
+from Support_Fun.ReSuSProduct import ReSuSProduct
+from Operations_on_Logarithmic_values.logGauss import logGauss
+from MCMC_samplers.ES import ES
+from MCMC_samplers.aCS import aCS
+from MCMC_samplers.HMC import HMC
+from MCMC_samplers.CW_aMH import CW_aMH
 
 
 class SeMCS:
@@ -45,7 +47,7 @@ class SeMCS:
         conditional_probabilities = []
         converged = False
         for _ in range(self.max_levels):
-            lp = -0.5*np.sum(x*x, axis=0)-self.dimension/2*np.log(2*np.pi)
+            lp = logGauss(x, self.dimension)
             samples.append(x); values.append(g)
             distributions.append(dist); log_normalizers.append(log_z); counts.append(len(g))
             next_dist = dist.update(g, lp, self.p0)
@@ -62,7 +64,7 @@ class SeMCS:
             next_log_z = log_z + np.log(probability)
             seed_x, seed_g = next_dist.select_seeds(x, g, lp, self.n_samples, rng)
             length = int(np.floor(self.n_samples/seed_x.shape[1]+0.5))
-            lp_seed = -.5*np.sum(seed_x*seed_x, axis=0)-self.dimension/2*np.log(2*np.pi)
+            lp_seed = logGauss(seed_x, self.dimension)
             packed = np.vstack((np.where(next_dist.contains(seed_g, lp_seed), 0., -np.inf), lp_seed, lp_seed, seed_g))
             self.sampler.BayStc = next_dist
             previous_state = dict(next_dist.G)
@@ -73,10 +75,8 @@ class SeMCS:
             calls += used
             dist, log_z = next_dist, next_log_z
         # Eq. (21)/(24): replace the un-sampled next hybrid event with true failure.
-        final_probability = float(np.mean(g <= 0))
+        pf, log_pf, final_probability = ReSuSProduct(g, log_z)
         conditional_probabilities.append(final_probability)
-        log_pf = float(log_z + np.log(final_probability)) if final_probability > 0 else -np.inf
-        pf = float(np.exp(log_pf))
         return dict(estimator="product", conditional_probabilities=np.array(conditional_probabilities), sampler_history=sampler_history, profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
                     values=values, thresholds=np.array([[d.g_threshold, d.logpdf_threshold] for d in distributions]),
                     log_normalizers=np.array(log_normalizers), sample_counts=np.array(counts))
