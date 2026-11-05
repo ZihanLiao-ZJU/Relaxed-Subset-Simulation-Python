@@ -1,7 +1,57 @@
 # ReSuS — Python
 
 ## Overview
-Relaxed subset simulation estimates failure probabilities with hybrid LSF / Gaussian-tail intermediate domains. This revision restores the **original sequential probability-product estimator**, Eqs. (21)–(24) of the cited paper, in place of the previous historical-sample MIS estimator. The default sampler remains `ES`; the four unified kernels remain unchanged.
+Relaxed subset simulation (ReSuS) estimates small failure probabilities using hybrid LSF / Gaussian-tail intermediate domains and the original sequential probability-product estimator. The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
+
+## Failure-probability integral and estimator
+
+Let $\mathbf U\sim\mathcal N(\mathbf0,\mathbf I_d)$, with standard-normal density $\varphi_d$, and let $g(\mathbf u)$ be the limit-state function in these reference coordinates. The failure domain is $\mathcal F=\{\mathbf u:g(\mathbf u)\le0\}$. The failure probability is
+
+$$
+P_f=\int_{\mathbb R^d}\mathbf1_{\mathcal F}(\mathbf u)\,\varphi_d(\mathbf u)\,\mathrm d\mathbf u.
+$$
+
+ReSuS uses hybrid intermediate domains and their importance sampling densities:
+
+$$
+\mathcal A_0=\mathbb R^d,\qquad
+\mathcal A_i=\{g(\mathbf u)\le b_i\}\cup\{\log\varphi_d(\mathbf u)\le a_i\},
+$$
+
+$$
+q_i(\mathbf u)=\frac{\varphi_d(\mathbf u)\,\mathbf1_{\mathcal A_i}(\mathbf u)}{Z_i},\qquad
+Z_i=\int_{\mathbb R^d}\mathbf1_{\mathcal A_i}(\mathbf u)\,\varphi_d(\mathbf u)\,\mathrm d\mathbf u,\qquad Z_0=1.
+$$
+
+Here $b_i$ is the LSF threshold and $a_i$ the Gaussian log-density threshold. The probability-product derivation requires nonincreasing thresholds (paper Eq. (20)). Let $m$ denote the last actually sampled level, with $b_m>0$. These conditions give $\mathcal A_0\supseteq\cdots\supseteq\mathcal A_m\supseteq\mathcal F$. The code chooses thresholds by empirical quantiles; it does not explicitly clamp each new threshold to the preceding value.
+
+For this nested construction, define the transition probability $r_i$ and final failure proportion $r_F$ by
+
+$$
+r_i=\mathbb E_{q_{i-1}}[\mathbf1_{\mathcal A_i}]=\frac{Z_i}{Z_{i-1}},\qquad
+r_F=\mathbb E_{q_m}[\mathbf1_{\mathcal F}].
+$$
+
+Then the failure integral becomes the native probability product (paper Eqs. (21)–(24)):
+
+$$
+P_f=Z_m\int_{\mathbb R^d}\mathbf1_{\mathcal F}(\mathbf u)q_m(\mathbf u)\,\mathrm d\mathbf u
+=\left(\prod_{i=1}^{m}r_i\right)r_F.
+$$
+
+With $N_i$ actual samples $\mathbf u_k^{(i)}$ from level $i$, the implemented estimate is
+
+$$
+\widehat r_i=\frac1{N_{i-1}}\sum_{k=1}^{N_{i-1}}\mathbf1_{\mathcal A_i}(\mathbf u_k^{(i-1)}),\qquad
+\widehat r_F=\frac1{N_m}\sum_{k=1}^{N_m}\mathbf1_{\mathcal F}(\mathbf u_k^{(m)}),
+$$
+
+$$
+\widehat P_f=\left(\prod_{i=1}^{m}\widehat r_i\right)\widehat r_F,\qquad
+\log\widehat P_f=\sum_{i=1}^{m}\log\widehat r_i+\log\widehat r_F.
+$$
+
+The empty product is 1 when $m=0$. At normal termination, the *next* LSF threshold has reached zero or below; the final factor is evaluated on the last **actually sampled** domain, whose LSF threshold is still positive. No additional unsampled hybrid-event factor is included. `conditional_probabilities` stores the transition factors followed by the true-failure factor; `log_normalizers` stores cumulative log-normalizer estimates. `ReSuSProduct` performs this native postprocessing rather than balance-heuristic MIS. All averages use actual level sizes, and MCMC correlation and adaptive thresholds remain relevant to uncertainty.
 
 ## Structure
 - `drive_resus.py` — example selection, settings and execution.
