@@ -20,7 +20,7 @@ python -m pip install -r requirements.txt
 python drive_resus.py --example A --n 1000 --seed 411 --sampler ES --profile paper
 python drive_resus.py --example C --n 1000 --seed 411 --sampler aCS --profile paper
 ```
-The returned result includes `pf`, `log_pf`, `conditional_probabilities`, actual `n_calls`, `converged`, sampled levels and `sampler_history`. `converged = false` is an unfinished run, not a validated estimate. `estimator` identifies this revision as `product`.
+The returned result includes `pf`, `log_pf`, `conditional_probabilities`, actual `n_calls`, `converged`, sampled levels. `converged = false` is an unfinished run, not a validated estimate. `estimator` identifies this revision as `product`.
 
 ## Examples and samplers
 | Example | Model / dimension | Driver selector |

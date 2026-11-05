@@ -42,7 +42,6 @@ class SeMCS:
         dist.Ndim = self.dimension
         dist.G = {"L": np.eye(self.dimension)}
         self.sampler.rng = rng
-        sampler_history = []
         samples, values, distributions, log_normalizers, counts = [], [], [], [], []
         conditional_probabilities = []
         converged = False
@@ -67,9 +66,7 @@ class SeMCS:
             lp_seed = logGauss(seed_x, self.dimension)
             packed = np.vstack((np.where(next_dist.contains(seed_g, lp_seed), 0., -np.inf), lp_seed, lp_seed, seed_g))
             self.sampler.BayStc = next_dist
-            previous_state = dict(next_dist.G)
             x, packed, used, next_dist = self.sampler.SamGen(seed_x, packed, length)
-            sampler_history.append({"initial": previous_state, "final": dict(next_dist.G)})
             x = x.reshape(self.dimension, -1, order="F")
             g = packed[3].reshape(-1, order="F")
             calls += used
@@ -77,6 +74,6 @@ class SeMCS:
         # Eq. (21)/(24): replace the un-sampled next hybrid event with true failure.
         pf, log_pf, final_probability = ReSuSProduct(g, log_z)
         conditional_probabilities.append(final_probability)
-        return dict(estimator="product", conditional_probabilities=np.array(conditional_probabilities), sampler_history=sampler_history, profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
+        return dict(estimator="product", conditional_probabilities=np.array(conditional_probabilities), profile=self.profile, sampler=type(self.sampler).__name__, pf=pf, log_pf=log_pf, converged=converged, n_calls=calls, samples=samples,
                     values=values, thresholds=np.array([[d.g_threshold, d.logpdf_threshold] for d in distributions]),
                     log_normalizers=np.array(log_normalizers), sample_counts=np.array(counts))
