@@ -10,6 +10,7 @@ class ReSuS:
 
     Nsam = 5000
     MaxIte = 100
+    StopBeforeSeeds = True
 
     def __init__(self, g_threshold=np.inf, logpdf_threshold=np.inf, profile="legacy"):
         if profile not in ("legacy", "paper"):
@@ -25,7 +26,9 @@ class ReSuS:
     def contains(self, g, logpdf):
         return (g <= self.g_threshold) | (logpdf <= self.logpdf_threshold)
 
-    def update(self, g, logpdf, p0):
+    def UpdObj(self, x, y, p0):
+        values = y.reshape(y.shape[0], -1, order="F")
+        g, logpdf = values[3], values[2]
         k = int(np.floor(len(g) * p0 + 0.5))
         if not 1 <= k < len(g):
             raise ValueError('p0 must select at least one but fewer than all samples')
@@ -36,29 +39,57 @@ class ReSuS:
             obj.g_threshold, obj.logpdf_threshold = sg[k - 1], sp[k - 1]
         else:
             obj.g_threshold, obj.logpdf_threshold = (sg[k - 1] + sg[k]) / 2, (sp[k - 1] + sp[k]) / 2
-        return obj
+        return y, obj.G, obj, 0
 
-    def select_seeds(self, x, g, logpdf, n, rng):
+    def SedSlt(self, x, y, n, rng):
+        x = x.reshape(x.shape[0], -1, order="F")
+        y = y.reshape(y.shape[0], -1, order="F")
+        g, logpdf = y[3], y[2]
         if self.profile == "paper":
             eligible = np.flatnonzero(self.contains(g, logpdf))
             if not len(eligible):
                 raise RuntimeError("No eligible seeds")
             count = int(np.floor(n / np.ceil(n / len(eligible)) + 0.5))
-            chosen = rng.choice(eligible, size=count, replace=False)
-            return x[:, chosen], g[chosen]
-        eligible = np.flatnonzero((g < self.g_threshold) | (logpdf < self.logpdf_threshold))
-        lengths = np.floor(n / np.arange(1, n + 1) + 0.5)
-        counts = np.floor(n / lengths + 0.5).astype(int)
-        counts = counts[counts <= len(eligible)]
-        if not len(counts):
-            raise RuntimeError('No eligible seeds; inspect LSF ties or sample size')
-        chosen = rng.choice(eligible, size=counts[-1], replace=False)
-        return x[:, chosen], g[chosen]
+        else:
+            eligible = np.flatnonzero((g < self.g_threshold) | (logpdf < self.logpdf_threshold))
+            lengths = np.floor(n / np.arange(1, n + 1) + 0.5)
+            counts = np.floor(n / lengths + 0.5).astype(int)
+            counts = counts[counts <= len(eligible)]
+            if not len(counts):
+                raise RuntimeError('No eligible seeds; inspect LSF ties or sample size')
+            count = counts[-1]
+        chosen = rng.choice(eligible, size=count, replace=False)
+        seeds = y[:, chosen].copy()
+        seeds[0] = np.where(self.contains(seeds[3], seeds[2]), 0., -np.inf)
+        return x[:, chosen], seeds
 
-    def converged(self):
+    @property
+    def FlgCvg(self):
         return self.g_threshold <= 0
 
+    def SamGen(self, n, rng=None):
+        """Draw the initial unconditioned standard-normal reference."""
+        if not np.isscalar(self.Ndim) or not np.isfinite(self.Ndim) or self.Ndim < 1 or int(self.Ndim) != self.Ndim:
+            raise ValueError('dimension must be a positive integer')
+        log_peak = -self.Ndim / 2 * np.log(2 * np.pi)
+        if not (np.isposinf(self.g_threshold) or self.logpdf_threshold >= log_peak):
+            raise ValueError('Initial ReSuS domain is not supported by the direct Gaussian draw')
+        factor = np.asarray(self.G.get("L", self.G.get("L_pi", np.eye(self.Ndim))))
+        if factor.ndim == 0:
+            factor = factor * np.eye(self.Ndim)
+        if not np.array_equal(factor, np.eye(self.Ndim)):
+            raise ValueError('ReSuS requires the standard-normal reference')
+        if n < 2 or not 1 <= int(np.floor(n * self.G["p"] + 0.5)) < n:
+            raise ValueError("p0 gives an invalid threshold rank")
+        rng = np.random if rng is None else rng
+        return rng.standard_normal((self.Ndim, n))
+
     def EvlY(self, u):
+        factor = np.asarray(self.G.get("L", self.G.get("L_pi", np.eye(self.Ndim))))
+        if factor.ndim == 0:
+            factor = factor * np.eye(self.Ndim)
+        if not np.array_equal(factor, np.eye(self.Ndim)):
+            raise ValueError('ReSuS requires the standard-normal reference')
         obj = copy.copy(self)
         values = np.asarray(self.lsf(u), dtype=float).reshape(1, -1)
         if values.shape[1] != u.shape[1] or not np.all(np.isfinite(values)):
@@ -72,64 +103,6 @@ class ReSuS:
 
     def EvlPDF(self):
         return self.Y[0]
-
-    def start_run(self, sampler):
-        """The initial direct draw requires the unconditioned Gaussian domain."""
-        if self.Ndim < 1 or int(self.Ndim) != self.Ndim:
-            raise ValueError('dimension must be a positive integer')
-        log_peak = -self.Ndim / 2 * np.log(2 * np.pi)
-        if not (np.isposinf(self.g_threshold) or self.logpdf_threshold >= log_peak):
-            raise ValueError('Initial ReSuS domain is not supported by the direct Gaussian draw')
-        factor = np.asarray(self.G.get("L", np.eye(self.Ndim)))
-        if factor.ndim == 0:
-            factor = factor * np.eye(self.Ndim)
-        if not np.array_equal(factor, np.eye(self.Ndim)) or self.G.get("log_normalizer", 0) != 0:
-            raise ValueError('ReSuS requires the standard-normal reference and initial normalizer one')
-        model = copy.copy(self)
-        model.G = dict(self.G, L=np.eye(self.Ndim), log_normalizer=0.0)
-        if sampler.rng is np.random:
-            sampler.rng = np.random.default_rng()
-        return model, sampler
-
-    def sample_level(self, sampler, n, xseed, yseed, steps, level):
-        if not np.array_equal(self.G["L"], np.eye(self.Ndim)):
-            raise ValueError("ReSuS requires the standard-normal reference")
-        if level == 0:
-            if n < 2 or not 1 <= int(np.floor(n * self.G["p"] + 0.5)) < n:
-                raise ValueError("p0 gives an invalid threshold rank")
-            x = sampler.rng.standard_normal((self.Ndim, n))
-            g = np.asarray(self.lsf(x), dtype=float).reshape(-1)
-            if len(g) != n or not np.all(np.isfinite(g)):
-                raise ValueError('LSF must return one finite value per sample')
-            calls = n
-            model = self
-            lp = logGauss(x, self.Ndim)
-            y = np.vstack((np.where(model.contains(g, lp), 0.0, -np.inf), lp, lp, g))
-            shape = (len(g), 1)
-        else:
-            sampler.BayStc = self
-            x, y, calls, model = sampler.SamGen(xseed, yseed, steps)
-            shape = (xseed.shape[1], steps)
-        return x, y, calls, model, shape
-
-    def select_run_seeds(self, x, y, n, rng, previous):
-        model = self
-        if not np.array_equal(model.G["L"], np.eye(model.Ndim)):
-            raise ValueError("ReSuS requires the standard-normal reference")
-        x = x.reshape(x.shape[0], -1, order="F")
-        y = y.reshape(y.shape[0], -1, order="F")
-        probability = float(np.mean(model.contains(y[3], y[2])))
-        if probability <= 0:
-            raise RuntimeError('Intermediate distribution has no supported samples')
-        model.G = dict(
-            model.G, log_normalizer=previous.G["log_normalizer"] + np.log(probability),
-            transition_probability=probability
-        )
-        seed_x, seed_g = model.select_seeds(x, y[3], y[2], n, rng)
-        length = int(np.floor(n / seed_x.shape[1] + 0.5))
-        lp = logGauss(seed_x, self.Ndim)
-        seed_y = np.vstack((np.where(model.contains(seed_g, lp), 0.0, -np.inf), lp, lp, seed_g))
-        return seed_x, seed_y, length, model
 
     @property
     def g_threshold(self):

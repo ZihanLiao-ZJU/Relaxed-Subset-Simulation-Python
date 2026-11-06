@@ -5,9 +5,15 @@ import numpy as np
 
 def ReSuSProduct(run):
     states = run["g"][:run["Nite"]]
-    factors = [g["transition_probability"] for g in states[1:]]
-    log_normalizers = [g["log_normalizer"] for g in states]
     values = [y.reshape(y.shape[0], -1, order="F")[3] for y in run["y"]]
+    factors, log_normalizers = [], [0.0]
+    for j, state in enumerate(states[1:]):
+        previous = run["y"][j].reshape(run["y"][j].shape[0], -1, order="F")
+        probability = float(np.mean(
+            (previous[3] <= state["g_threshold"]) | (previous[2] <= state["logpdf_threshold"])
+        ))
+        factors.append(probability)
+        log_normalizers.append(log_normalizers[-1] + np.log(probability))
     g = values[-1]
     log_z = log_normalizers[-1]
     final_probability = float(np.mean(g <= 0))
