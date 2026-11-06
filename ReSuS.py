@@ -67,9 +67,6 @@ class ReSuS:
     def EvlPDF(self):
         return self.Y[0]
 
-    def run_defaults(self):
-        return dict(NumSam=5000, ConPrb=0.1, MaxIte=100, Verbose=False)
-
     def start_run(self, owner, sampler):
         n = owner.NumSam
         if not isinstance(n, (int, np.integer)) or n < 2:
@@ -97,103 +94,40 @@ class ReSuS:
             "logpdf_threshold": np.inf,
             "log_normalizer": 0.0,
         }
-        return dict(
-            owner=owner,
-            model=model,
-            sampler=sampler,
-            limit=int(owner.MaxIte),
-            rng=rng,
-            x=[],
-            y=[],
-            g=[],
-            Nsam=[],
-            Nsze=[],
-            Ncal=[],
-            conditional_probabilities=[],
-            complete=False,
-            xseed=None,
-            yseed=None,
-            steps=1,
-        )
+        return model, sampler
 
-    def sample_level(self, context, level):
+    def sample_level(self, sampler, n, xseed, yseed, steps, level):
         if level == 0:
-            x = context["rng"].standard_normal((self.Ndim, context["owner"].NumSam))
+            x = sampler.rng.standard_normal((self.Ndim, n))
             g = np.asarray(self.lsf(x), dtype=float).reshape(-1)
-            if len(g) != context["owner"].NumSam or not np.all(np.isfinite(g)):
+            if len(g) != n or not np.all(np.isfinite(g)):
                 raise ValueError('LSF must return one finite value per sample')
-            calls = context["owner"].NumSam
-            model = context["model"]
+            calls = n
+            model = self
             lp = logGauss(x, self.Ndim)
             y = np.vstack((np.where(model.contains(g, lp), 0.0, -np.inf), lp, lp, g))
             shape = (len(g), 1)
         else:
-            context["sampler"].BayStc = context["model"]
-            x, y, calls, model = context["sampler"].SamGen(
-                context["xseed"], context["yseed"], context["steps"]
-            )
-            shape = (context["xseed"].shape[1], context["steps"])
+            sampler.BayStc = self
+            x, y, calls, model = sampler.SamGen(xseed, yseed, steps)
+            shape = (xseed.shape[1], steps)
             x = x.reshape(self.Ndim, -1, order="F")
             y = y.reshape(4, -1, order="F")
-        context["model"] = model
-        record = dict(x=x, y=y, calls=calls, count=y.shape[1], shape=shape)
-        context["x"].append(x)
-        context["y"].append(y)
-        context["g"].append(copy.deepcopy(model.G))
-        context["Nsam"].append(record["count"])
-        context["Nsze"].append(shape)
-        context["Ncal"].append(calls)
-        return record
+        return x, y, calls, model, shape
 
-    def advance_level(self, context, record, level):
-        context["next_model"] = context["model"].update(
-            record["y"][3], record["y"][2], context["owner"].ConPrb
-        )
-
-    def run_complete(self, context, record, phase):
-        if phase != "before_seeds":
-            return False
-        if context["next_model"].converged():
-            context["complete"] = True
-            return True
-        return len(context["x"]) == context["limit"]
-
-    def select_run_seeds(self, context, record, level):
-        model = context["next_model"]
-        probability = float(np.mean(model.contains(record["y"][3], record["y"][2])))
+    def select_run_seeds(self, x, y, n, rng, previous):
+        model = self
+        probability = float(np.mean(model.contains(y[3], y[2])))
         if probability <= 0:
             raise RuntimeError('Intermediate distribution has no supported samples')
-        context["conditional_probabilities"].append(probability)
         model.G = dict(
-            model.G, log_normalizer=context["model"].G["log_normalizer"] + np.log(probability)
+            model.G, log_normalizer=previous.G["log_normalizer"] + np.log(probability)
         )
-        seed_x, seed_g = model.select_seeds(
-            record["x"], record["y"][3], record["y"][2], context["owner"].NumSam, context["rng"]
-        )
-        length = int(np.floor(context["owner"].NumSam / seed_x.shape[1] + 0.5))
+        seed_x, seed_g = model.select_seeds(x, y[3], y[2], n, rng)
+        length = int(np.floor(n / seed_x.shape[1] + 0.5))
         lp = logGauss(seed_x, self.Ndim)
-        context["xseed"] = seed_x
-        context["yseed"] = np.vstack(
-            (np.where(model.contains(seed_g, lp), 0.0, -np.inf), lp, lp, seed_g)
-        )
-        context["steps"] = length
-        context["model"] = model
-
-    def finish_run(self, context):
-        return dict(
-            x=context["x"],
-            y=context["y"],
-            g=context["g"],
-            Nsam=np.asarray(context["Nsam"]),
-            Nsze=np.asarray(context["Nsze"]),
-            Ncal=np.asarray(context["Ncal"]),
-            Nite=len(context["x"]),
-            flg_cvg=context["complete"],
-            intBay=context["model"],
-            conditional_probabilities=np.asarray(context["conditional_probabilities"]),
-            profile=self.profile,
-            sampler=type(context["sampler"]).__name__,
-        )
+        seed_y = np.vstack((np.where(model.contains(seed_g, lp), 0.0, -np.inf), lp, lp, seed_g))
+        return seed_x, seed_y, length, model, probability
 
     @property
     def g_threshold(self):
@@ -207,3 +141,12 @@ class ReSuS:
     @logpdf_threshold.setter
     def logpdf_threshold(self, value):
         self.G = dict(self.G, logpdf_threshold=value)
+
+    RunOptions = dict(
+        Defaults=dict(NumSam=5000, ConPrb=0.1, MaxIte=100, Verbose=False),
+        CountPolicy="scalar", LoopOffset=0, PostCapOffset=0,
+        StopPhase="before_seeds", PresetMode="adaptive", UpdateOutputs=1,
+        SeedFunction=select_run_seeds, SeedInputs="transition", StateHistory="sample",
+        OutputFields=("conditional_probabilities", "profile", "sampler"),
+    )
+
