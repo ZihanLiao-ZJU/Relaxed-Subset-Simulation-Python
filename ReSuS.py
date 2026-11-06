@@ -1,10 +1,13 @@
 """Hybrid LSF / Gaussian-tail intermediate distributions."""
-import numpy as np
+
 import copy
+import numpy as np
 from Operations_on_Logarithmic_values.logGauss import logGauss
 
 
 class ReSuS:
+    """Hybrid domain defined by LSF and Gaussian-tail thresholds stored in G."""
+
     def __init__(self, g_threshold=np.inf, logpdf_threshold=np.inf, profile="legacy"):
         if profile not in ("legacy", "paper"):
             raise ValueError("profile must be legacy or paper")
@@ -67,20 +70,19 @@ class ReSuS:
     def EvlPDF(self):
         return self.Y[0]
 
-    def start_run(self, owner, sampler):
-        n = owner.NumSam
+    def start_run(self, n, p0, max_levels, states, sampler):
         if not isinstance(n, (int, np.integer)) or n < 2:
             raise ValueError('n must be an integer >= 2')
-        if not 1 <= int(np.floor(n * owner.ConPrb + 0.5)) < n:
+        if not 1 <= int(np.floor(n * p0 + 0.5)) < n:
             raise ValueError('p0 gives an invalid threshold rank')
         if (
             self.Ndim < 1
             or int(self.Ndim) != self.Ndim
-            or owner.MaxIte < 1
-            or int(owner.MaxIte) != owner.MaxIte
+            or max_levels < 1
+            or int(max_levels) != max_levels
         ):
             raise ValueError('dimension and max_levels must be positive integers')
-        if owner.G:
+        if states:
             raise ValueError('ReSuS selects its hybrid thresholds adaptively')
         sampler = copy.copy(sampler)
         if hasattr(sampler, "reset"):
@@ -132,12 +134,15 @@ class ReSuS:
     @property
     def g_threshold(self):
         return self.G["g_threshold"]
+
     @g_threshold.setter
     def g_threshold(self, value):
         self.G = dict(self.G, g_threshold=value)
+
     @property
     def logpdf_threshold(self):
         return self.G["logpdf_threshold"]
+
     @logpdf_threshold.setter
     def logpdf_threshold(self, value):
         self.G = dict(self.G, logpdf_threshold=value)
@@ -145,8 +150,7 @@ class ReSuS:
     RunOptions = dict(
         Defaults=dict(NumSam=5000, ConPrb=0.1, MaxIte=100, Verbose=False),
         CountPolicy="scalar", LoopOffset=0, PostCapOffset=0,
-        StopPhase="before_seeds", PresetMode="adaptive", UpdateOutputs=1,
+        StopPhase="before_seeds", PresetMode="adaptive",
         SeedFunction=select_run_seeds, SeedInputs="transition", StateHistory="sample",
         OutputFields=("conditional_probabilities", "profile", "sampler"),
     )
-
