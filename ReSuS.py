@@ -8,6 +8,9 @@ from Operations_on_Logarithmic_values.logGauss import logGauss
 class ReSuS:
     """Hybrid domain defined by LSF and Gaussian-tail thresholds stored in G."""
 
+    Nsam = 5000
+    MaxIte = 100
+
     def __init__(self, g_threshold=np.inf, logpdf_threshold=np.inf, profile="legacy"):
         if profile not in ("legacy", "paper"):
             raise ValueError("profile must be legacy or paper")
@@ -70,36 +73,30 @@ class ReSuS:
     def EvlPDF(self):
         return self.Y[0]
 
-    def start_run(self, n, p0, max_levels, states, sampler):
-        if not isinstance(n, (int, np.integer)) or n < 2:
-            raise ValueError('n must be an integer >= 2')
-        if not 1 <= int(np.floor(n * p0 + 0.5)) < n:
-            raise ValueError('p0 gives an invalid threshold rank')
-        if (
-            self.Ndim < 1
-            or int(self.Ndim) != self.Ndim
-            or max_levels < 1
-            or int(max_levels) != max_levels
-        ):
-            raise ValueError('dimension and max_levels must be positive integers')
-        if states:
-            raise ValueError('ReSuS selects its hybrid thresholds adaptively')
-        sampler = copy.copy(sampler)
-        if hasattr(sampler, "reset"):
-            sampler.reset()
-        rng = np.random.default_rng() if sampler.rng is np.random else sampler.rng
-        sampler.rng = rng
+    def start_run(self, sampler):
+        """The initial direct draw requires the unconditioned Gaussian domain."""
+        if self.Ndim < 1 or int(self.Ndim) != self.Ndim:
+            raise ValueError('dimension must be a positive integer')
+        log_peak = -self.Ndim / 2 * np.log(2 * np.pi)
+        if not (np.isposinf(self.g_threshold) or self.logpdf_threshold >= log_peak):
+            raise ValueError('Initial ReSuS domain is not supported by the direct Gaussian draw')
+        factor = np.asarray(self.G.get("L", np.eye(self.Ndim)))
+        if factor.ndim == 0:
+            factor = factor * np.eye(self.Ndim)
+        if not np.array_equal(factor, np.eye(self.Ndim)) or self.G.get("log_normalizer", 0) != 0:
+            raise ValueError('ReSuS requires the standard-normal reference and initial normalizer one')
         model = copy.copy(self)
-        model.G = {
-            "L": np.eye(self.Ndim),
-            "g_threshold": np.inf,
-            "logpdf_threshold": np.inf,
-            "log_normalizer": 0.0,
-        }
+        model.G = dict(self.G, L=np.eye(self.Ndim), log_normalizer=0.0)
+        if sampler.rng is np.random:
+            sampler.rng = np.random.default_rng()
         return model, sampler
 
     def sample_level(self, sampler, n, xseed, yseed, steps, level):
+        if not np.array_equal(self.G["L"], np.eye(self.Ndim)):
+            raise ValueError("ReSuS requires the standard-normal reference")
         if level == 0:
+            if n < 2 or not 1 <= int(np.floor(n * self.G["p"] + 0.5)) < n:
+                raise ValueError("p0 gives an invalid threshold rank")
             x = sampler.rng.standard_normal((self.Ndim, n))
             g = np.asarray(self.lsf(x), dtype=float).reshape(-1)
             if len(g) != n or not np.all(np.isfinite(g)):
@@ -113,23 +110,26 @@ class ReSuS:
             sampler.BayStc = self
             x, y, calls, model = sampler.SamGen(xseed, yseed, steps)
             shape = (xseed.shape[1], steps)
-            x = x.reshape(self.Ndim, -1, order="F")
-            y = y.reshape(4, -1, order="F")
         return x, y, calls, model, shape
 
     def select_run_seeds(self, x, y, n, rng, previous):
         model = self
+        if not np.array_equal(model.G["L"], np.eye(model.Ndim)):
+            raise ValueError("ReSuS requires the standard-normal reference")
+        x = x.reshape(x.shape[0], -1, order="F")
+        y = y.reshape(y.shape[0], -1, order="F")
         probability = float(np.mean(model.contains(y[3], y[2])))
         if probability <= 0:
             raise RuntimeError('Intermediate distribution has no supported samples')
         model.G = dict(
-            model.G, log_normalizer=previous.G["log_normalizer"] + np.log(probability)
+            model.G, log_normalizer=previous.G["log_normalizer"] + np.log(probability),
+            transition_probability=probability
         )
         seed_x, seed_g = model.select_seeds(x, y[3], y[2], n, rng)
         length = int(np.floor(n / seed_x.shape[1] + 0.5))
         lp = logGauss(seed_x, self.Ndim)
         seed_y = np.vstack((np.where(model.contains(seed_g, lp), 0.0, -np.inf), lp, lp, seed_g))
-        return seed_x, seed_y, length, model, probability
+        return seed_x, seed_y, length, model
 
     @property
     def g_threshold(self):
@@ -147,10 +147,3 @@ class ReSuS:
     def logpdf_threshold(self, value):
         self.G = dict(self.G, logpdf_threshold=value)
 
-    RunOptions = dict(
-        Defaults=dict(NumSam=5000, ConPrb=0.1, MaxIte=100, Verbose=False),
-        CountPolicy="scalar", LoopOffset=0, PostCapOffset=0,
-        StopPhase="before_seeds", PresetMode="adaptive",
-        SeedFunction=select_run_seeds, SeedInputs="transition", StateHistory="sample",
-        OutputFields=("conditional_probabilities", "profile", "sampler"),
-    )

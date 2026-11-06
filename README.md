@@ -65,6 +65,8 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Quick start
 
+Set `MaxIte` to the maximum number of sampled levels. A scalar `NumSam` is reused; a vector is a finite per-level budget. The run returns when either limit is reached, and `flg_cvg` reports the method's own convergence criterion. Entries in `G` patch intermediate states; omitted fields and carried `lambda`/`HMC_time` are retained.
+
 Run from this repository's root:
 
 ```bash
@@ -98,6 +100,8 @@ Write a function with the same interface as the files in `Limit_state_functions/
 Replace the selected LSF in `drive_resus.py` and set `model.Ndim`. For a separate script, construct `ReSuS`, set `lsf` and `Ndim`, bind the model to a sampler, construct `simulation = SeMCS(sampler)`, and call `ReSuSProduct(simulation.RunIte(rng))` as in the driver. For nonnormal physical inputs, include the reference-to-physical transformation in your LSF.
 
 ## Outputs
+
+The raw sampling history `g` contains `Nite` sampled states followed by one final candidate state. `Nsze` records the chain and step counts at each sampled level.
 
 The driver returns one result with the following fields:
 
