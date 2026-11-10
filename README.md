@@ -2,8 +2,7 @@
 
 Python implementation of **Relaxed Subset Simulation (ReSuS)**. This code accompanies the paper:
 
-> **Relaxed subset simulation for reliability estimation.**
-> *Reliability Engineering & System Safety*, 264 (2025), 111302. doi: [10.1016/j.ress.2025.111302](https://doi.org/10.1016/j.ress.2025.111302)
+> Li, B., Xia, W., & Liao, Z. (2025). Relaxed subset simulation for reliability estimation. *Reliability Engineering & System Safety, 264*, Article 111302. [https://doi.org/10.1016/j.ress.2025.111302](https://doi.org/10.1016/j.ress.2025.111302)
 
 ## Contents
 
@@ -121,9 +120,21 @@ If `converged` is false, the run ended before the stopping condition was reached
 
 ## Citation
 
-If you use this code in your research, please cite:
+If you use this toolbox in your research, please cite:
 
-> Li, B., Xia, W., & Liao, Z. (2025). Relaxed subset simulation for reliability estimation. *Reliability Engineering & System Safety*, 264, 111302. https://doi.org/10.1016/j.ress.2025.111302
+> Li, B., Xia, W., & Liao, Z. (2025). Relaxed subset simulation for reliability estimation. *Reliability Engineering & System Safety, 264*, Article 111302. [https://doi.org/10.1016/j.ress.2025.111302](https://doi.org/10.1016/j.ress.2025.111302)
+
+```bibtex
+@article{li2025relaxed,
+  title   = {Relaxed subset simulation for reliability estimation},
+  author  = {Li, Binbin and Xia, Weili and Liao, Zihan},
+  journal = {Reliability Engineering & System Safety},
+  volume  = {264},
+  pages   = {111302},
+  year    = {2025},
+  doi     = {10.1016/j.ress.2025.111302}
+}
+```
 
 ## License
 
