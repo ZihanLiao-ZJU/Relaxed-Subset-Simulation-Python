@@ -65,17 +65,14 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Quick start
 
-Set `MaxIte` to the maximum number of sampled levels. A scalar `NumSam` is reused; a vector is a finite per-level budget. The run returns when either limit is reached, and `flg_cvg` reports the method's own convergence criterion. Entries in `G` patch intermediate states; omitted fields and carried `lambda`/`HMC_time` are retained.
-
-Run from this repository's root:
+Run one Example A simulation from the repository root, using 5000 samples per level and the `ES` sampler:
 
 ```bash
 python -m pip install -r requirements.txt
-python drive_resus.py --example A --n 1000 --seed 411 --sampler ES --profile paper
-python drive_resus.py --example C --n 1000 --seed 411 --sampler aCS --profile paper
+python drive_resus.py --example A --n 5000 --sampler ES
 ```
 
-To change the problem, sample size, seed, sampler or profile, edit the driver settings or pass the corresponding arguments shown above.
+Change `--example`, `--n` and `--sampler` to select the problem, scalar sample size and MCMC sampler. Each invocation performs one run with the driver's default method settings; `--seed` fixes the random seed.
 
 ## Built-in examples
 
@@ -85,7 +82,7 @@ To change the problem, sample size, seed, sampler or profile, edit the driver se
 | B | Nonlinear changing-topology LSF; 2 independent standard normals | `B` |
 | C | Linear / logistic LSF, paper Eq. (26); 2 independent standard normals | `C` |
 
-The defaults are example A, 5000 samples per level, seed 1, conditional probability 0.1, `ES`, and the `legacy` profile. The maximum number of levels is 100. The quick-start commands select 1000 samples and the `paper` profile explicitly.
+The defaults are example A, 5000 samples per level, seed 1, conditional probability 0.1, `ES`, and the `legacy` profile. The maximum number of levels is 100. The quick-start command uses these defaults.
 
 - `legacy` uses midpoint thresholds and strict seed eligibility.
 - `paper` uses order-statistic thresholds, inclusive eligibility and Algorithm 1 chain-count rounding.
