@@ -11,8 +11,8 @@ Python implementation of **Relaxed Subset Simulation (ReSuS)**. This code accomp
 - [Requirements](#requirements)
 - [Repository structure](#repository-structure)
 - [Quick start](#quick-start)
-- [Built-in examples and settings](#built-in-examples-and-settings)
-- [Custom performance function](#custom-performance-function)
+- [Built-in examples](#built-in-examples)
+- [Using a custom performance function](#using-a-custom-performance-function)
 - [Outputs](#outputs)
 - [Citation](#citation)
 - [License](#license)
@@ -37,6 +37,7 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 ## Repository structure
 
 ```text
+.
 ├── LICENSE
 ├── Limit_state_functions/
 │   ├── LSF_2D_ChangingTopological.py
@@ -77,7 +78,7 @@ python drive_resus.py --example C --n 1000 --seed 411 --sampler aCS --profile pa
 
 To change the problem, sample size, seed, sampler or profile, edit the driver settings or pass the corresponding arguments shown above.
 
-## Built-in examples and settings
+## Built-in examples
 
 | Example | Model / dimension | Driver selector |
 |---|---|---|
@@ -93,7 +94,7 @@ The defaults are example A, 5000 samples per level, seed 1, conditional probabil
 
 `CW_aMH` uses seed-spread-scaled uniform increments in whitened Gaussian-reference coordinates. `ES` uses coordinatewise initial angles in `[0, pi]`. `aCS` starts with `sigma0=1` and `lambda0=0.6`, uses five adaptation groups and target acceptance 0.44, and carries lambda between levels. `HMC` uses analytic Gaussian-reference rotation and carries its adapted trajectory time between levels. Fixed options belong to the sampler; evolving values belong to the model's `G`.
 
-## Custom performance function
+## Using a custom performance function
 
 Write a function with the same interface as the files in `Limit_state_functions/`: it accepts a NumPy array of shape `(dimension, sample_count)` in standard-normal reference coordinates and returns one finite LSF value per column, with failure defined by `g <= 0`.
 
@@ -127,3 +128,4 @@ If you use this code in your research, please cite:
 ## License
 
 This project is licensed under the [MIT License](LICENSE). Original copyright and source notices are retained. [Other language](https://github.com/ZihanLiao-ZJU/Relaxed-Subset-Simulation).
+
