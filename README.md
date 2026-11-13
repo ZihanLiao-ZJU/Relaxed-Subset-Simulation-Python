@@ -65,7 +65,7 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Quick start
 
-Edit `example`, `Nsam` and `SamplerClass` inside `drive_resus.py`. Select `SamplerClass = ES` (the default), or choose another supplied sampler: `CW_aMH`, `aCS`, `HMC` or `ES`.
+Edit `model.lsf`, `simulation.NumSam` and `SamplerClass` inside `drive_resus.py`. Select `SamplerClass = ES` (the default), or choose another supplied sampler: `CW_aMH`, `aCS`, `HMC` or `ES`.
 
 The script defaults to Example A, 5000 samples per level and one run. The conditional probability is 0.1 and the default profile is `legacy`.
 
@@ -79,9 +79,9 @@ python drive_resus.py
 
 | Example | Model / dimension | Driver selector |
 |---|---|---|
-| A | Piecewise-linear LSF; 2 independent standard normals | `A` |
-| B | Nonlinear changing-topology LSF; 2 independent standard normals | `B` |
-| C | Linear / logistic LSF, paper Eq. (26); 2 independent standard normals | `C` |
+| A | Piecewise-linear LSF; 2 independent standard normals | `LSF_2D_PiecewiseLinear` |
+| B | Nonlinear changing-topology LSF; 2 independent standard normals | `LSF_2D_ChangingTopological` |
+| C | Linear / logistic LSF, paper Eq. (26); 2 independent standard normals | `LSF_2D_LinearLog` |
 
 The defaults are example A, 5000 samples per level, conditional probability 0.1, `ES`, and the `legacy` profile. The maximum number of levels is 100. The quick-start command uses these defaults.
 
@@ -95,7 +95,7 @@ The defaults are example A, 5000 samples per level, conditional probability 0.1,
 
 Write a function with the same interface as the files in `Limit_state_functions/`: it accepts a NumPy array of shape `(dimension, sample_count)` in standard-normal reference coordinates and returns one finite LSF value per column, with failure defined by `g <= 0`.
 
-Replace the selected LSF in `drive_resus.py` and set `model.Ndim`. For a separate script, construct `ReSuS`, set `lsf` and `Ndim`, bind the model to a sampler, construct `simulation = SeMCS(sampler)`, and call `ReSuSProduct(simulation.RunIte(rng))` as in the driver. For nonnormal physical inputs, include the reference-to-physical transformation in your LSF.
+Replace the selected LSF in `drive_resus.py` and set `model.Ndim`. For a separate script, construct `ReSuS`, set `lsf` and `Ndim`, bind the model to a sampler, construct `simulation = SeMCS(sampler)`, and call `ReSuSProduct(simulation.RunIte())` as in the driver. For nonnormal physical inputs, include the reference-to-physical transformation in your LSF.
 
 ## Outputs
 

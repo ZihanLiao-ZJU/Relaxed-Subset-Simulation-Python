@@ -8,7 +8,7 @@ class MCMCBase:
 
     def __init__(self, BayStc=None, rng=None):
         self.BayStc = BayStc
-        self.rng = np.random if rng is None else rng
+        self.rng = np.random.default_rng() if rng is None else rng
 
     @property
     def Ndim(self):
